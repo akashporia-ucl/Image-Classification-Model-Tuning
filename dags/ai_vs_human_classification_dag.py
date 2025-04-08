@@ -24,7 +24,7 @@ with DAG(
     run_spark_submit_resnet = BashOperator(
         task_id='run_spark_submit_resnet',
         bash_command="""
-        cd /home/almalinux/Image-Classification/backend && \
+        cd /home/almalinux/Image-Classification-Model-Tuning && \
         spark-submit \
           --master spark://management:7077 \
           --deploy-mode client \
@@ -38,7 +38,7 @@ with DAG(
     run_spark_submit_vgg16 = BashOperator(
         task_id='run_spark_submit_vgg16',
         bash_command="""
-        cd /home/almalinux/Image-Classification/backend && \
+        cd /home/almalinux/Image-Classification-Model-Tuning && \
         spark-submit \
           --master spark://management:7077 \
           --deploy-mode client \
@@ -52,7 +52,7 @@ with DAG(
     run_spark_submit_inception = BashOperator(
         task_id='run_spark_submit_inception',
         bash_command="""
-        cd /home/almalinux/Image-Classification/backend && \
+        cd /home/almalinux/Image-Classification-Model-Tuning && \
         spark-submit \
           --master spark://management:7077 \
           --deploy-mode client \
@@ -103,4 +103,5 @@ with DAG(
         """
     )
 
-    [run_spark_submit_resnet, run_spark_submit_vgg16, run_spark_submit_inception] >> run_collate_results >> [run_evaluate_model_vgg16, run_evaluate_model_inception, run_evaluate_model_resnet] >> publish_result_event
+    #[run_spark_submit_resnet, run_spark_submit_vgg16, run_spark_submit_inception] >> run_collate_results >> [run_evaluate_model_vgg16, run_evaluate_model_inception, run_evaluate_model_resnet] >> publish_result_event
+    [run_spark_submit_resnet, run_spark_submit_vgg16, run_spark_submit_inception] >> run_collate_results >> publish_result_event

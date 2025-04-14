@@ -1,6 +1,15 @@
 import os
 import subprocess
 import torch
+import shutil
+import argparse
+
+# Mapping model names to their corresponding HDFS model partition directories.
+MODEL_FOLDERS = {
+    "inceptionv3": "/data/model_partitions/inception",
+    "resnet50": "/data/model_partitions/resnet50",
+    "vgg16": "/data/model_partitions/vgg16"
+}
 
 def get_model_files(hdfs_dir):
     """
@@ -63,8 +72,9 @@ def average_state_dicts(state_dicts):
 
 def collate_models(model_folder, output_filename, local_download_dir="downloaded_models"):
     """
-    For a given model folder in HDFS, downloads all .pt files,
-    averages their state dictionaries, and saves the final model to HDFS under /data/model_collated.
+    Downloads .pt files from the specified HDFS folder,
+    averages their state dictionaries, saves the final model locally,
+    and uploads it to HDFS under /data/model_collated.
     """
     print(f"Processing folder: {model_folder}")
     model_files = get_model_files(model_folder)
@@ -73,7 +83,7 @@ def collate_models(model_folder, output_filename, local_download_dir="downloaded
         return False
     print("Found model files:", model_files)
     
-    # Create a subfolder for this model type locally.
+    # Create a subfolder for this model locally.
     model_local_dir = os.path.join(local_download_dir, os.path.basename(model_folder).lower())
     local_model_files = download_models(model_files, model_local_dir)
     
@@ -116,20 +126,57 @@ def collate_models(model_folder, output_filename, local_download_dir="downloaded
         return False
     return True
 
-def main():
-    # Define the HDFS model partition folders to process.
-    model_folders = {
-        "inceptionv3": "/data/model_partitions/inceptionv3",
-        "resnet50": "/data/model_partitions/resnet50",
-        "vgg16": "/data/model_partitions/vgg16"
-    }
-    
-    # Process each folder and collate the models.
-    for model_name, folder in model_folders.items():
-        output_filename = f"{model_name}_final.pt"
-        success = collate_models(folder, output_filename)
-        if not success:
-            print(f"Failed to collate models for {model_name}")
-    
+def delete_local_directory(directory):
+    """
+    Deletes the specified local directory and its contents.
+    """
+    if os.path.exists(directory):
+        try:
+            shutil.rmtree(directory)
+            print(f"Deleted local directory {directory}")
+        except Exception as e:
+            print(f"Error deleting local directory {directory}: {e}")
+    else:
+        print(f"Local directory {directory} does not exist.")
+
+def delete_hdfs_directory(hdfs_dir):
+    """
+    Deletes the specified HDFS directory and its contents.
+    """
+    try:
+        subprocess.check_call(["hdfs", "dfs", "-rm", "-r", hdfs_dir])
+        print(f"Deleted HDFS directory {hdfs_dir}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error deleting HDFS directory {hdfs_dir}: {e}")
+
+def process_model(model_name, local_download_dir="downloaded_models"):
+    """
+    Processes a single model:
+      - Downloads and collates the .pt files from the HDFS partition,
+      - Uploads the averaged model to HDFS,
+      - Deletes the locally downloaded files and the HDFS partition.
+    """
+    # Get the HDFS folder for the specified model.
+    model_folder = MODEL_FOLDERS.get(model_name.lower())
+    if not model_folder:
+        print(f"Model name '{model_name}' is not valid. Valid options are: {list(MODEL_FOLDERS.keys())}")
+        return
+
+    output_filename = f"{model_name}_final.pt"
+    if collate_models(model_folder, output_filename, local_download_dir):
+        # Clean up local downloaded files.
+        local_model_dir = os.path.join(local_download_dir, os.path.basename(model_folder).lower())
+        delete_local_directory(local_model_dir)
+        # Delete the HDFS partition directory.
+        delete_hdfs_directory(model_folder)
+    else:
+        print(f"Failed to process model for {model_name}")
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Process a model by its name and collate its .pt files.")
+    parser.add_argument("model_name", type=str, help="Name of the model to process (e.g., inceptionv3, resnet50, vgg16)")
+    return parser.parse_args()
+
 if __name__ == "__main__":
-    main()
+    args = parse_arguments()
+    process_model(args.model_name)

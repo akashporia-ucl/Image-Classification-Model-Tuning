@@ -164,8 +164,14 @@ with DAG(
     #[run_spark_submit_resnet, run_spark_submit_vgg16, run_spark_submit_inception] >> run_collate_results >> [run_evaluate_model_vgg16, run_evaluate_model_inception, run_evaluate_model_resnet] >> publish_result_event
     #[run_spark_submit_resnet, run_spark_submit_vgg16, run_spark_submit_inception] >> run_collate_results >> publish_result_event
 
+    # [
+    #     [run_spark_submit_resnet >> run_collate_results_for_resnet >> run_evaluate_model_resnet >> publish_update_for_resnet],
+    #     [run_spark_submit_inception >> run_collate_results_for_inception >> run_evaluate_model_inception >> publish_update_for_inception],
+    #     [run_spark_submit_vgg16 >> run_collate_results_for_vgg16 >> run_evaluate_model_vgg16 >> publish_update_for_vgg16]
+    # ] >> publish_result_event
+
     [
-        [run_spark_submit_resnet >> run_collate_results_for_resnet >> run_evaluate_model_resnet >> publish_update_for_resnet],
-        [run_spark_submit_inception >> run_collate_results_for_inception >> run_evaluate_model_inception >> publish_update_for_inception],
-        [run_spark_submit_vgg16 >> run_collate_results_for_vgg16 >> run_evaluate_model_vgg16 >> publish_update_for_vgg16]
+        run_spark_submit_resnet >> run_collate_results_for_resnet >> run_evaluate_model_resnet >> publish_update_for_resnet,
+        run_spark_submit_inception >> run_collate_results_for_inception >> run_evaluate_model_inception >> publish_update_for_inception,
+        run_spark_submit_vgg16 >> run_collate_results_for_vgg16 >> run_evaluate_model_vgg16 >> publish_update_for_vgg16
     ] >> publish_result_event

@@ -1,11 +1,15 @@
 import os
 import subprocess
-import pickle
 import json
-from PIL import Image
-import numpy as np
-import pika
 import logging
+import time
+from PIL import Image
+import pika
+import torch
+import torchvision.models as models
+import torchvision.transforms as transforms
+import io
+import torch.nn as nn
 
 # -----------------------------------------------------------------------------
 # Configuration and Constants
@@ -14,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # RabbitMQ configuration
-RABBITMQ_HOST = 'management'
+RABBITMQ_HOST = 'worker1'
 RABBITMQ_USERNAME = 'myuser'
 RABBITMQ_PASSWORD = 'mypassword'
 credentials = pika.PlainCredentials(RABBITMQ_USERNAME, RABBITMQ_PASSWORD)
@@ -27,78 +31,79 @@ RESPONSE_QUEUE = 'response_queue'
 RESPONSE_ROUTING_KEY = 'response_key'
 
 # HDFS configuration for the model and images
-MODEL_HDFS_PATH = '/data/best_model'
-LOCAL_MODEL_FILENAME = 'best_model'
-HDFS_IMAGE_BASE_PATH = '/data/images/'
+MODEL_HDFS_PATH = '/data/model_collated'
+MODEL_HDFS_NAME = 'resnet50_final.pt'
+# (No hardcoding of local filename; it is chosen dynamically from HDFS)
 
 # -----------------------------------------------------------------------------
 # Utility Functions
 # -----------------------------------------------------------------------------
 def load_pretrained_model():
-    """
-    Downloads the pretrained model from HDFS (if not present locally) and loads it.
-    Assumes the model is stored as a pickle file.
-    """
-    if not os.path.exists(LOCAL_MODEL_FILENAME):
-        logger.info("Pretrained model not found locally. Downloading from HDFS...")
-        subprocess.run(['hdfs', 'dfs', '-get', MODEL_HDFS_PATH, LOCAL_MODEL_FILENAME], check=True)
-    with open(LOCAL_MODEL_FILENAME, 'rb') as f:
-        model = pickle.load(f)
-    logger.info("Pretrained model loaded successfully.")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Create a ResNet50 model and adjust for binary classification.
+    model = models.resnet50(pretrained=False)
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Linear(num_ftrs, 2)
+    model.to(device)
+    model.eval()
+
+    # Load the model state from HDFS.
+    try:
+        full_model_path = os.path.join(MODEL_HDFS_PATH, MODEL_HDFS_NAME)
+        subprocess.check_call(["hdfs", "dfs", "-get", "-f", full_model_path])
+        state_dict = torch.load(MODEL_HDFS_NAME, map_location=device)
+        model.load_state_dict(state_dict)
+        logger.info("Model loaded successfully from HDFS.")
+    except Exception as e:
+        logger.error("Error loading model from HDFS: %s", e)
+        return None
+    
     return model
 
 def download_image_from_hdfs(hdfs_path, local_path):
-    """
-    Downloads the image from HDFS to a local file.
-    """
     logger.info("Downloading image from HDFS: '%s' to local file: '%s'", hdfs_path, local_path)
     subprocess.run(['hdfs', 'dfs', '-get', hdfs_path, local_path], check=True)
 
 def preprocess_image(image_path):
     """
-    Preprocesses the image for inference.
-    
-    This example:
-      - Opens the image and converts it to RGB.
-      - Resizes the image to 224x224 pixels.
-      - Flattens the image into a 1D array and reshapes it to (1, -1).
-    
-    Adjust these steps as needed for your model.
+    Preprocess the input image in the same way as during training.
+    For InceptionV3, use a 299x299 crop; for other architectures (e.g., ResNet50), use 224x224.
     """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
     image = Image.open(image_path).convert('RGB')
-    image = image.resize((224, 224))
-    image_array = np.array(image)
-    features = image_array.flatten().reshape(1, -1)
-    return features
+    image = transform(image)
+    image = image.unsqueeze(0).to(device)
+    return image
 
 def publish_response(classification):
-    """
-    Publishes the classification result to the response queue using the
-    direct exchange setup.
-    """
     try:
         connection = pika.BlockingConnection(
             pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials)
         )
         channel = connection.channel()
-        channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='direct', durable=True)
+        # Declare the exchange without durable flag (or set durable=False to match existing exchange)
+        channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='direct')
         channel.queue_declare(queue=RESPONSE_QUEUE, durable=True)
         channel.queue_bind(exchange=EXCHANGE_NAME, queue=RESPONSE_QUEUE, routing_key=RESPONSE_ROUTING_KEY)
         channel.basic_publish(
-            exchange=EXCHANGE_NAME, 
-            routing_key=RESPONSE_ROUTING_KEY, 
-            body=classification
+            exchange=EXCHANGE_NAME,
+            routing_key=RESPONSE_ROUTING_KEY,
+            body=str(classification),
+            properties=pika.BasicProperties(delivery_mode=2)
         )
         logger.info("Published classification result: '%s'", classification)
+        time.sleep(0.2)
         connection.close()
     except Exception as e:
         logger.error("Error publishing response: %s", e)
 
 def process_message(body, model):
-    """
-    Parses the incoming message, downloads and preprocesses the image from HDFS,
-    classifies the image using the pretrained model, and publishes the result.
-    """
     logger.info("Processing message: %s", body)
     try:
         message_data = json.loads(body.decode('utf-8'))
@@ -112,14 +117,16 @@ def process_message(body, model):
         logger.error("Invalid message data: %s", message_data)
         return
 
-    local_image_path = filename  # Save the image locally using the filename provided.
+    local_image_path = filename
     try:
         download_image_from_hdfs(hdfs_image_path, local_image_path)
-        features = preprocess_image(local_image_path)
-        prediction = model.predict(features)
-        # Assume the model returns an array (e.g., ["ai"] or ["human"])
-        classification = prediction[0]
-        publish_response(classification)
+        # Use the updated preprocessing for consistency with training
+        input_tensor = preprocess_image(local_image_path)
+        with torch.no_grad():
+            output = model(input_tensor)
+            _, predicted = torch.max(output, 1)
+        pred_label =  int(predicted.cpu().numpy()[0])
+        publish_response(pred_label)
     except Exception as e:
         logger.error("Error during image processing/classification: %s", e)
     finally:
@@ -130,37 +137,31 @@ def process_message(body, model):
                 logger.error("Error cleaning up image file: %s", e)
 
 def on_message(ch, method, properties, body, model):
-    """
-    Callback function that handles the consumed RabbitMQ message.
-    """
     logger.info("Received message: %s", body)
     process_message(body, model)
-    # Acknowledge the message if you are not using auto_ack
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
-# -----------------------------------------------------------------------------
-# Main Function to Setup RabbitMQ Consumer
-# -----------------------------------------------------------------------------
 def main():
     model = load_pretrained_model()
-
+    if model is None:
+        logger.error("Failed to load the model. Exiting.")
+        return
+    
     connection = pika.BlockingConnection(
         pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials)
     )
     channel = connection.channel()
-
-    # Declare the exchange and bind the request queue with the routing key.
-    channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='direct', durable=True)
+    # Declare the exchange without a durable flag.
+    channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='direct')
     channel.queue_declare(queue=REQUEST_QUEUE, durable=True)
     channel.queue_bind(exchange=EXCHANGE_NAME, queue=REQUEST_QUEUE, routing_key=REQUEST_ROUTING_KEY)
 
     logger.info("Waiting for messages in queue '%s'. To exit press CTRL+C", REQUEST_QUEUE)
 
-    # Define a callback that wraps the on_message function with model passed in.
     def callback(ch, method, properties, body):
         on_message(ch, method, properties, body, model)
 
-    channel.basic_consume(queue=REQUEST_QUEUE, on_message_callback=callback, auto_ack=True)
+    channel.basic_consume(queue=REQUEST_QUEUE, on_message_callback=callback, auto_ack=False)
     channel.start_consuming()
 
 if __name__ == '__main__':

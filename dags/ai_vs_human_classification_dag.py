@@ -21,8 +21,8 @@ with DAG(
     tags=['spark', 'resnet', 'vgg16'],
 ) as dag:
 
-    run_spark_submit_resnet = BashOperator(
-        task_id='run_spark_submit_resnet',
+    spark_submit_for_tuning = BashOperator(
+        task_id='spark_submit_for_tuning',
         bash_command="""
         cd /home/almalinux/Image-Classification-Model-Tuning && \
         spark-submit \
@@ -31,127 +31,78 @@ with DAG(
           --conf spark.executor.instances=4 \
           --conf spark.executor.cores=2 \
           --conf spark.executor.memory=4G \
-          tune_resnet.py 1
+          tune_resnet.py 2
         """
     )
 
-    run_spark_submit_vgg16 = BashOperator(
-        task_id='run_spark_submit_vgg16',
-        bash_command="""
-        cd /home/almalinux/Image-Classification-Model-Tuning && \
-        spark-submit \
-          --master spark://management:7077 \
-          --deploy-mode client \
-          --conf spark.executor.instances=4 \
-          --conf spark.executor.cores=2 \
-          --conf spark.executor.memory=4G \
-          tune_vgg16.py 1
-        """
-    )
-
-    run_spark_submit_inception = BashOperator(
-        task_id='run_spark_submit_inception',
-        bash_command="""
-        cd /home/almalinux/Image-Classification-Model-Tuning && \
-        spark-submit \
-          --master spark://management:7077 \
-          --deploy-mode client \
-          --conf spark.executor.instances=4 \
-          --conf spark.executor.cores=2 \
-          --conf spark.executor.memory=4G \
-          tune_inception.py 1
-        """
-    )
-
-    run_collate_results_for_resnet = BashOperator(
-        task_id='run_collate_results_for_resnet',
-        bash_command="""
-        cd /home/almalinux/Image-Classification-Model-Tuning &&
-        /usr/bin/python collate.py resnet50
-        """
-    )
-
-    run_collate_results_for_inception = BashOperator(
-        task_id='run_collate_results_for_inception',
-        bash_command="""
-        cd /home/almalinux/Image-Classification-Model-Tuning &&
-        /usr/bin/python collate.py inceptionv3
-        """
-    )
-
-    run_collate_results_for_vgg16 = BashOperator(
-        task_id='run_collate_results_for_vgg16',
-        bash_command="""
-        cd /home/almalinux/Image-Classification-Model-Tuning &&
-        /usr/bin/python collate.py vgg16
-        """
-    )
-
-    run_evaluate_model_vgg16 = BashOperator(
-        task_id='run_evaluate_model_vgg16',
-        bash_command="""
-        cd /home/almalinux/Image-Classification-Model-Tuning && \
-        spark-submit \
-          --master spark://management:7077 \
-          --deploy-mode client \
-          --conf spark.executor.instances=4 \
-          --conf spark.executor.cores=2 \
-          --conf spark.executor.memory=4G \
-        evaluate_vgg16.py
-        """
-    )
-
-    run_evaluate_model_inception = BashOperator(
-        task_id='run_evaluate_model_inception',
-        bash_command="""
-        cd /home/almalinux/Image-Classification-Model-Tuning && \
-        spark-submit \
-          --master spark://management:7077 \
-          --deploy-mode client \
-          --conf spark.executor.instances=4 \
-          --conf spark.executor.cores=2 \
-          --conf spark.executor.memory=4G \
-        evaluate_inception.py
-        """
-    )
-
-    run_evaluate_model_resnet = BashOperator(
-        task_id='run_evaluate_model_resnet',
-        bash_command="""
-        cd /home/almalinux/Image-Classification-Model-Tuning && \
-        spark-submit \
-          --master spark://management:7077 \
-          --deploy-mode client \
-          --conf spark.executor.instances=4 \
-          --conf spark.executor.cores=2 \
-          --conf spark.executor.memory=4G \
-        evaluate_resnet.py
-        """
-    )
-
-    publish_update_for_resnet = BashOperator(
-        task_id='publish_result_for_resnet',
+    publish_model_tuning_event = BashOperator(
+        task_id='publish_model_tuning_event',
         bash_command="""
         cd /home/almalinux/Image-Classification-Model-Tuning &&
         /usr/bin/python publisher.py "Tuning completed for ResNet"
         """
     )
 
-    publish_update_for_inception = BashOperator(
-        task_id='publish_result_for_inception',
+    collate_model_partitions = BashOperator(
+        task_id='collate_model_partitions',
         bash_command="""
         cd /home/almalinux/Image-Classification-Model-Tuning &&
-        /usr/bin/python publisher.py "Tuning completed for Inception"
+        /usr/bin/python collate.py resnet50
         """
     )
 
-    publish_update_for_vgg16 = BashOperator(
-        task_id='publish_result_for_vgg16',
+    publish_model_collate_event = BashOperator(
+        task_id='publish_model_collate_event',
         bash_command="""
         cd /home/almalinux/Image-Classification-Model-Tuning &&
-        /usr/bin/python publisher.py "Tuning completed for VGG16"
+        /usr/bin/python publisher.py "Collate model partitions completed"
         """
     )
+
+    spark_submit_evaluate_model_for_train_data = BashOperator(
+        task_id='spark_submit_evaluate_model_for_train_data',
+        bash_command="""
+        cd /home/almalinux/Image-Classification-Model-Tuning && \
+        spark-submit \
+          --master spark://management:7077 \
+          --deploy-mode client \
+          --conf spark.executor.instances=4 \
+          --conf spark.executor.cores=2 \
+          --conf spark.executor.memory=4G \
+        evaluate_train.py
+        """
+    )
+
+    publish_evaluate_train_event = BashOperator(
+        task_id='publish_evaluate_train_event',
+        bash_command="""
+        cd /home/almalinux/Image-Classification-Model-Tuning &&
+        /usr/bin/python publisher.py "Evaluate train data completed"
+        """
+    )
+
+    spark_submit_evaluate_model_for_test_data = BashOperator(
+        task_id='spark_submit_evaluate_model_for_test_data',
+        bash_command="""
+        cd /home/almalinux/Image-Classification-Model-Tuning && \
+        spark-submit \
+          --master spark://management:7077 \
+          --deploy-mode client \
+          --conf spark.executor.instances=4 \
+          --conf spark.executor.cores=2 \
+          --conf spark.executor.memory=4G \
+          evaluate_test.py
+        """
+    )
+
+    publish_evaluate_test_event = BashOperator(
+        task_id='publish_evaluate_test_event',
+        bash_command="""
+        cd /home/almalinux/Image-Classification-Model-Tuning &&
+        /usr/bin/python publisher.py "Evaluate test data completed"
+        """
+    )
+
 
     publish_result_event = BashOperator(
         task_id='publish_result',
@@ -161,17 +112,6 @@ with DAG(
         """
     )
 
-    #[run_spark_submit_resnet, run_spark_submit_vgg16, run_spark_submit_inception] >> run_collate_results >> [run_evaluate_model_vgg16, run_evaluate_model_inception, run_evaluate_model_resnet] >> publish_result_event
-    #[run_spark_submit_resnet, run_spark_submit_vgg16, run_spark_submit_inception] >> run_collate_results >> publish_result_event
-
-    # [
-    #     [run_spark_submit_resnet >> run_collate_results_for_resnet >> run_evaluate_model_resnet >> publish_update_for_resnet],
-    #     [run_spark_submit_inception >> run_collate_results_for_inception >> run_evaluate_model_inception >> publish_update_for_inception],
-    #     [run_spark_submit_vgg16 >> run_collate_results_for_vgg16 >> run_evaluate_model_vgg16 >> publish_update_for_vgg16]
-    # ] >> publish_result_event
-
-    [
-        run_spark_submit_resnet >> run_collate_results_for_resnet >> run_evaluate_model_resnet >> publish_update_for_resnet,
-        run_spark_submit_inception >> run_collate_results_for_inception >> run_evaluate_model_inception >> publish_update_for_inception,
-        run_spark_submit_vgg16 >> run_collate_results_for_vgg16 >> run_evaluate_model_vgg16 >> publish_update_for_vgg16
-    ] >> publish_result_event
+    spark_submit_for_tuning >> publish_model_tuning_event >> collate_model_partitions >> publish_model_collate_event >> \
+    [spark_submit_evaluate_model_for_train_data >> publish_evaluate_train_event,
+     spark_submit_evaluate_model_for_test_data >> publish_evaluate_test_event] >> publish_result_event

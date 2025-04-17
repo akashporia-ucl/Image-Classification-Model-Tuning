@@ -31,7 +31,7 @@ with DAG(
           --conf spark.executor.instances=4 \
           --conf spark.executor.cores=2 \
           --conf spark.executor.memory=4G \
-          tune_resnet.py 2
+          tune_resnet.py 4.5
         """
     )
 
@@ -62,13 +62,16 @@ with DAG(
     spark_submit_evaluate_model_for_train_data = BashOperator(
         task_id='spark_submit_evaluate_model_for_train_data',
         bash_command="""
+        export PYSPARK_PYTHON=/usr/bin/python3
+        export PYSPARK_DRIVER_PYTHON=/usr/bin/python3
         cd /home/almalinux/Image-Classification-Model-Tuning && \
         spark-submit \
-          --master spark://management:7077 \
-          --deploy-mode client \
-          --conf spark.executor.instances=4 \
-          --conf spark.executor.cores=2 \
-          --conf spark.executor.memory=4G \
+        --master spark://management:7077 \
+        --deploy-mode client \
+        --conf spark.executor.instances=4 \
+        --conf spark.executor.cores=2 \
+        --conf spark.executor.memory=4G \
+        --conf spark.myApp.numPartitions=64 \
         evaluate_train.py
         """
     )
@@ -84,14 +87,17 @@ with DAG(
     spark_submit_evaluate_model_for_test_data = BashOperator(
         task_id='spark_submit_evaluate_model_for_test_data',
         bash_command="""
+        export PYSPARK_PYTHON=/usr/bin/python3
+        export PYSPARK_DRIVER_PYTHON=/usr/bin/python3
         cd /home/almalinux/Image-Classification-Model-Tuning && \
         spark-submit \
-          --master spark://management:7077 \
-          --deploy-mode client \
-          --conf spark.executor.instances=4 \
-          --conf spark.executor.cores=2 \
-          --conf spark.executor.memory=4G \
-          evaluate_test.py
+        --master spark://management:7077 \
+        --deploy-mode client \
+        --conf spark.executor.instances=4 \
+        --conf spark.executor.cores=2 \
+        --conf spark.executor.memory=4G \
+        --conf spark.myApp.numPartitions=16 \
+        evaluate_test.py
         """
     )
 
@@ -112,6 +118,32 @@ with DAG(
         """
     )
 
-    spark_submit_for_tuning >> publish_model_tuning_event >> collate_model_partitions >> publish_model_collate_event >> \
-    [spark_submit_evaluate_model_for_train_data >> publish_evaluate_train_event,
-     spark_submit_evaluate_model_for_test_data >> publish_evaluate_test_event] >> publish_result_event
+    delete_request_session = BashOperator(
+        task_id = 'delete_request_session',
+        bash_command = """
+        #!/bin/bash
+        # Find and quit all screen sessions with name 'request'
+        for session in $(screen -ls | awk '/request/ {print $1}'); do
+            screen -S "$session" -X quit
+        done
+        """
+    )
+
+    start_request_session = BashOperator(
+    task_id='start_request_session',
+    bash_command="""
+        #!/bin/bash
+        cd /home/almalinux/Image-Classification-Model-Tuning
+        screen -dmS request /usr/bin/python request.py
+        echo "Started new screen session 'request' running request.py"
+        """
+    )
+
+    # spark_submit_for_tuning >> publish_model_tuning_event >> collate_model_partitions >> publish_model_collate_event >> \
+    # [spark_submit_evaluate_model_for_train_data >> publish_evaluate_train_event,
+    #  spark_submit_evaluate_model_for_test_data >> publish_evaluate_test_event] >> publish_result_event
+
+    spark_submit_for_tuning >> publish_model_tuning_event >> collate_model_partitions >> publish_model_collate_event
+    publish_model_collate_event >> spark_submit_evaluate_model_for_train_data >> publish_evaluate_train_event >> delete_request_session
+    publish_model_collate_event >> spark_submit_evaluate_model_for_test_data >> publish_evaluate_test_event >> delete_request_session
+    delete_request_session >> start_request_session >> publish_result_event

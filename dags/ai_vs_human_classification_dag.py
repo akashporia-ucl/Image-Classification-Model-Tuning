@@ -18,20 +18,25 @@ with DAG(
     schedule_interval=None,
     start_date=datetime(2024, 1, 1),
     catchup=False,
-    tags=['spark', 'resnet', 'vgg16'],
+    tags=['spark', 'resnet', 'ai_vs_human'],
 ) as dag:
 
     spark_submit_for_tuning = BashOperator(
         task_id='spark_submit_for_tuning',
         bash_command="""
+        export PYSPARK_PYTHON=/usr/bin/python3
+        export PYSPARK_DRIVER_PYTHON=/usr/bin/python3
         cd /home/almalinux/Image-Classification-Model-Tuning && \
-        spark-submit \
-          --master spark://management:7077 \
-          --deploy-mode client \
-          --conf spark.executor.instances=4 \
-          --conf spark.executor.cores=2 \
-          --conf spark.executor.memory=4G \
-          tune_resnet.py 4.5
+        /home/almalinux/spark-3.5.3-bin-hadoop3-scala2.13/bin/spark-submit \
+            --master spark://management:7077 \
+            --deploy-mode client \
+            --conf spark.pyspark.python=/usr/bin/python3 \
+            --conf spark.pyspark.driver.python=/usr/bin/python3 \
+            --executor-memory 8G \
+            --executor-cores 4 \
+            --num-executors 4 \
+            --driver-memory 4G \
+            tune_resnet.py 0.5
         """
     )
 
@@ -68,6 +73,8 @@ with DAG(
         spark-submit \
         --master spark://management:7077 \
         --deploy-mode client \
+        --conf spark.pyspark.python=/usr/bin/python3 \
+        --conf spark.pyspark.driver.python=/usr/bin/python3 \
         --conf spark.executor.instances=4 \
         --conf spark.executor.cores=2 \
         --conf spark.executor.memory=4G \
@@ -93,6 +100,8 @@ with DAG(
         spark-submit \
         --master spark://management:7077 \
         --deploy-mode client \
+        --conf spark.pyspark.python=/usr/bin/python3 \
+        --conf spark.pyspark.driver.python=/usr/bin/python3 \
         --conf spark.executor.instances=4 \
         --conf spark.executor.cores=2 \
         --conf spark.executor.memory=4G \

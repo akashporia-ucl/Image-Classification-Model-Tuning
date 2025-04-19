@@ -15,9 +15,10 @@ with DAG(
     dag_id='ai_vs_human_classification_dag',
     default_args=default_args,
     description='A DAG that triggers spark-submit jobs, collate results, chooses best result and publishes an event via BashOperator',
-    schedule_interval=None,
-    start_date=datetime(2024, 1, 1),
+    schedule_interval='@once',
+    start_date=datetime(2025, 1, 1),
     catchup=False,
+    is_paused_upon_creation=False,
     tags=['spark', 'resnet', 'ai_vs_human'],
 ) as dag:
 
@@ -36,7 +37,7 @@ with DAG(
             --executor-cores 4 \
             --num-executors 4 \
             --driver-memory 4G \
-            tune_resnet.py 0.5
+            tune_resnet.py 6
         """
     )
 

@@ -10,6 +10,7 @@ source py_env/bin/activate
 # 3. Set Airflow environment variables
 export AIRFLOW__CORE__SQL_ALCHEMY_CONN="sqlite:////tmp/airflow.db"
 export AIRFLOW_HOME="."
+export AIRFLOW__WEBSERVER__WORKERS=1
 
 # 4. Initialise the Airflow metadata database
 airflow db init
@@ -24,7 +25,7 @@ airflow users create \
   --password admin
 
 # 6. Launch the webserver on port 7777 (in background)
-airflow webserver --port 7777 &
+airflow webserver --port 7777 --workers 1 &
 
 # 7. Launch the scheduler (in foreground)
 airflow scheduler &

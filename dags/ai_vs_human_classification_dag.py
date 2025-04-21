@@ -37,7 +37,7 @@ with DAG(
             --executor-cores 4 \
             --num-executors 4 \
             --driver-memory 4G \
-            tune_resnet.py 6
+            tune_resnet.py .05
         """
     )
 

@@ -71,7 +71,7 @@ with DAG(
         export PYSPARK_PYTHON=/usr/bin/python3
         export PYSPARK_DRIVER_PYTHON=/usr/bin/python3
         cd /home/almalinux/Image-Classification-Model-Tuning && \
-        spark-submit \
+        /home/almalinux/spark-3.5.3-bin-hadoop3-scala2.13/bin/spark-submit \
         --master spark://management:7077 \
         --deploy-mode client \
         --conf spark.pyspark.python=/usr/bin/python3 \
@@ -98,7 +98,7 @@ with DAG(
         export PYSPARK_PYTHON=/usr/bin/python3
         export PYSPARK_DRIVER_PYTHON=/usr/bin/python3
         cd /home/almalinux/Image-Classification-Model-Tuning && \
-        spark-submit \
+        /home/almalinux/spark-3.5.3-bin-hadoop3-scala2.13/bin/spark-submit \
         --master spark://management:7077 \
         --deploy-mode client \
         --conf spark.pyspark.python=/usr/bin/python3 \

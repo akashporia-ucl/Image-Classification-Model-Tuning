@@ -27,6 +27,7 @@ with DAG(
         bash_command="""
         export PYSPARK_PYTHON=/usr/bin/python3
         export PYSPARK_DRIVER_PYTHON=/usr/bin/python3
+        export PATH=/home/almalinux/hadoop-3.4.0/bin:$PATH
         cd /home/almalinux/Image-Classification-Model-Tuning && \
         /home/almalinux/spark-3.5.3-bin-hadoop3-scala2.13/bin/spark-submit \
             --master spark://management:7077 \
@@ -71,6 +72,7 @@ with DAG(
         bash_command="""
         export PYSPARK_PYTHON=/usr/bin/python3
         export PYSPARK_DRIVER_PYTHON=/usr/bin/python3
+        export PATH=/home/almalinux/hadoop-3.4.0/bin:$PATH
         cd /home/almalinux/Image-Classification-Model-Tuning && \
         /home/almalinux/spark-3.5.3-bin-hadoop3-scala2.13/bin/spark-submit \
         --master spark://management:7077 \
@@ -98,6 +100,7 @@ with DAG(
         bash_command="""
         export PYSPARK_PYTHON=/usr/bin/python3
         export PYSPARK_DRIVER_PYTHON=/usr/bin/python3
+        export PATH=/home/almalinux/hadoop-3.4.0/bin:$PATH
         cd /home/almalinux/Image-Classification-Model-Tuning && \
         /home/almalinux/spark-3.5.3-bin-hadoop3-scala2.13/bin/spark-submit \
         --master spark://management:7077 \

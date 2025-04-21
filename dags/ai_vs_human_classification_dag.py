@@ -52,6 +52,7 @@ with DAG(
     collate_model_partitions = BashOperator(
         task_id='collate_model_partitions',
         bash_command="""
+        export PATH=/home/almalinux/hadoop-3.4.0/bin:$PATH && \
         cd /home/almalinux/Image-Classification-Model-Tuning &&
         /usr/bin/python collate.py resnet50
         """

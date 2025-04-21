@@ -129,25 +129,24 @@ with DAG(
     )
 
     delete_request_session = BashOperator(
-        task_id = 'delete_request_session',
-        bash_command = """
-        #!/bin/bash
-        # Find and quit all screen sessions with name 'request'
-        for session in $(screen -ls | awk '/request/ {print $1}'); do
-            screen -S "$session" -X quit
-        done
+        task_id='delete_request_session',
+        bash_command="""
+        sudo -u almalinux bash -lc "for session in \$(/usr/bin/screen -ls | awk '/request/ {print \$1}'); do
+        /usr/bin/screen -S \"\$session\" -X quit
+        done"
         """
     )
 
     start_request_session = BashOperator(
-    task_id='start_request_session',
-    bash_command="""
-        #!/bin/bash
-        cd /home/almalinux/Image-Classification-Model-Tuning
-        screen -dmS request /usr/bin/python request.py
-        echo "Started new screen session 'request' running request.py"
+        task_id='start_request_session',
+        bash_command="""
+        sudo -u almalinux bash -lc "cd /home/almalinux/Image-Classification-Model-Tuning && \
+        /usr/bin/screen -dmS request /usr/bin/python /home/almalinux/Image-Classification-Model-Tuning/request.py && \
+        echo \"Started new screen session 'request'\""
         """
     )
+
+
 
     # spark_submit_for_tuning >> publish_model_tuning_event >> collate_model_partitions >> publish_model_collate_event >> \
     # [spark_submit_evaluate_model_for_train_data >> publish_evaluate_train_event,

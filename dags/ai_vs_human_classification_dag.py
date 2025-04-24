@@ -126,7 +126,7 @@ with DAG(
         --conf spark.executor.cores=2 \
         --conf spark.executor.memory=4G \
         --conf spark.myApp.numPartitions=64 \
-        evaluate_train.py
+        evaluate_train.py \
         --csv_path {{var.value.train_csv_path}} \
         --images_base_path {{var.value.images_base_path}} \
         """
@@ -156,7 +156,7 @@ with DAG(
         --conf spark.executor.cores=2 \
         --conf spark.executor.memory=4G \
         --conf spark.myApp.numPartitions=16 \
-        evaluate_test.py
+        evaluate_test.py \
         -- csv_path {{var.value.test_csv_path}} \
         -- images_base_path {{var.value.images_base_path}} \
         """

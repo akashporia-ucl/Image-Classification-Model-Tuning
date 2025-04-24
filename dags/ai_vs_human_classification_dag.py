@@ -27,7 +27,7 @@ for key, default in [
     ),
     (
         'sample_data_path',
-        '/home/almalinux/Image-Classification-Model-Tuning/data/sample.csv'
+        'hdfs://management:9000/data/sample.csv'
     ),
     ('tuning_time', '.1'),
     (

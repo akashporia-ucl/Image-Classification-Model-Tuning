@@ -157,8 +157,8 @@ with DAG(
         --conf spark.executor.memory=4G \
         --conf spark.myApp.numPartitions=16 \
         evaluate_test.py \
-        -- csv_path {{var.value.test_csv_path}} \
-        -- images_base_path {{var.value.images_base_path}} \
+        --csv_path {{var.value.test_csv_path}} \
+        --images_base_path {{var.value.images_base_path}} \
         """
     )
 

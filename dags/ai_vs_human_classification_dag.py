@@ -1,6 +1,45 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
+from airflow.models import Variable
+from airflow.exceptions import AirflowException
 from datetime import datetime, timedelta
+
+def ensure_var(key: str, default: str) -> str:
+    """
+    Ensure that the Airflow Variable `key` exists.
+    If it does not, set it to `default` and return that value.
+    """
+    try:
+        return Variable.get(key)
+    except (AirflowException, KeyError):
+        Variable.set(key, default)
+        return default
+
+# On import, guarantee the defaults exist; tasks will pick up the latest via Jinja
+for key, default in [
+    (
+        'train_data_path',
+        'hdfs://management:9000/data/train_data/*'
+    ),
+    (
+        'train_csv_path',
+        'hdfs://management:9000/data/train.csv'
+    ),
+    (
+        'sample_data_path',
+        '/home/almalinux/Image-Classification-Model-Tuning/data/sample.csv'
+    ),
+    ('tuning_time', '.1'),
+    (
+        'images_base_path',
+        'hdfs://management:9000/data'
+    ),
+    (
+        'test_csv_path',
+        'hdfs://management:9000/data/test.csv'
+    )
+]:
+    ensure_var(key, default)
 
 default_args = {
     'owner': 'admin',
@@ -38,7 +77,11 @@ with DAG(
             --executor-cores 4 \
             --num-executors 4 \
             --driver-memory 4G \
-            tune_resnet.py .05
+            tune_resnet.py \
+            --tune_time {{var.value.tuning_time}}  \
+            --csv_path {{var.value.train_csv_path}} \
+            --image_path {{var.value.train_data_path}} \
+
         """
     )
 
@@ -84,6 +127,8 @@ with DAG(
         --conf spark.executor.memory=4G \
         --conf spark.myApp.numPartitions=64 \
         evaluate_train.py
+        --csv_path {{var.value.train_csv_path}} \
+        --images_base_path {{var.value.images_base_path}} \
         """
     )
 
@@ -112,6 +157,8 @@ with DAG(
         --conf spark.executor.memory=4G \
         --conf spark.myApp.numPartitions=16 \
         evaluate_test.py
+        -- csv_path {{var.value.test_csv_path}} \
+        -- images_base_path {{var.value.images_base_path}} \
         """
     )
 
@@ -149,12 +196,6 @@ with DAG(
         echo \"Started new screen session 'request'\""
         """
     )
-
-
-
-    # spark_submit_for_tuning >> publish_model_tuning_event >> collate_model_partitions >> publish_model_collate_event >> \
-    # [spark_submit_evaluate_model_for_train_data >> publish_evaluate_train_event,
-    #  spark_submit_evaluate_model_for_test_data >> publish_evaluate_test_event] >> publish_result_event
 
     spark_submit_for_tuning >> publish_model_tuning_event >> collate_model_partitions >> publish_model_collate_event
     publish_model_collate_event >> spark_submit_evaluate_model_for_train_data >> publish_evaluate_train_event >> delete_request_session

@@ -14,6 +14,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import torchvision.transforms as transforms
 from torchvision import models
 from PIL import Image
+import  argparse
 
 
 class PartitionImageDataset(Dataset):
@@ -179,26 +180,54 @@ def process_partition(partition_index, partition_data, mapping_bc, tune_time_hou
 
 
 def main():
+    # 1. Set up argument parser
+    parser = argparse.ArgumentParser(
+        description="Tune ResNet50 model on HDFS image data"
+    )
+    parser.add_argument(
+        "--tune_time",
+        type=float,
+        default=1.0,
+        help="Tuning time per partition in hours (default: 1.0)"
+    )
+    parser.add_argument(
+        "--csv_path",
+        type=str,
+        default="hdfs://management:9000/data/train.csv",
+        help="Path to the labels CSV file"
+    )
+    parser.add_argument(
+        "--image_path",
+        type=str,
+        default="hdfs://management:9000/data/train_data/*",
+        help="Path to the image data files"
+    )
+    args = parser.parse_args()
+    tune_time_hours = args.tune_time
+    csv_path =  args.csv_path
+    image_path = args.image_path
+
     # Parse tuning time
-    tune_time_hours = 1.0
-    if len(sys.argv) > 1:
-        try:
-            tune_time_hours = float(sys.argv[1])
-        except ValueError:
-            print("Invalid tuning time; defaulting to 1.0 hour")
+    # tune_time_hours = 1.0
+    # if len(sys.argv) > 1:
+    #     try:
+    #         tune_time_hours = float(sys.argv[1])
+    #     except ValueError:
+    #         print("Invalid tuning time; defaulting to 1.0 hour")
 
     # Initialize Spark
     spark = SparkSession.builder.appName("TuneResNet50Model").getOrCreate()
     sc    = spark.sparkContext
 
     # Read labels CSV and broadcast mapping
-    csv_path = "hdfs://management:9000/data/train.csv"
+    #csv_path = "hdfs://management:9000/data/train.csv"
     df = spark.read.csv(csv_path, header=True, inferSchema=True)
     mapping = {os.path.basename(r['file_name']).strip().lower(): int(r['label']) for r in df.collect()}
     mapping_bc = sc.broadcast(mapping)
 
     # Read image data and tune per partition
-    images_rdd = sc.binaryFiles("hdfs://management:9000/data/train_data/*")
+    #image_path = "hdfs://management:9000/data/train_data/*"
+    images_rdd = sc.binaryFiles(image_path)
     results = (images_rdd
                .mapPartitionsWithIndex(
                    lambda idx, it: process_partition(idx, it, mapping_bc, tune_time_hours)

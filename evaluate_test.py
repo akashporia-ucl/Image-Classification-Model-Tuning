@@ -8,6 +8,7 @@ import tempfile
 import torch
 import torch.nn as nn
 from torchvision import transforms, models
+import argparse
 
 
 def load_image_from_hdfs(path):
@@ -86,6 +87,25 @@ def evaluate_partition(partition_index, rows, images_base_path, hdfs_model_path)
 
 
 def main():
+    # 1. Set up argument parser
+    parser = argparse.ArgumentParser(
+        description="Tune ResNet50 model on HDFS image data"
+    )
+    parser.add_argument(
+        "--csv_path",
+        type=str,
+        default="hdfs://management:9000/data/test.csv",
+        help="Path to the labels CSV file"
+    )
+    parser.add_argument(
+        "--images_base_path",
+        type=str,
+        default="hdfs://management:9000/data",
+        help="Path to the image data files"
+    )
+    args = parser.parse_args()
+    test_csv_path =  args.csv_path
+    images_base = args.images_base_path
     # Initialize Spark
     spark = SparkSession.builder \
         .appName("Distributed_Test_Evaluation") \
@@ -95,8 +115,8 @@ def main():
     num_partitions = int(spark.conf.get("spark.myApp.numPartitions", "32"))
 
     # HDFS paths
-    test_csv_path   = "hdfs://management:9000/data/test.csv"
-    images_base     = "hdfs://management:9000/data"
+    #test_csv_path   = "hdfs://management:9000/data/test.csv"
+    #images_base     = "hdfs://management:9000/data"
     hdfs_model_path = "hdfs://management:9000/data/model_collated/resnet50_final.pt"
     hdfs_output_csv = "hdfs://management:9000/data/distributed_evaluation_test_results.csv"
 

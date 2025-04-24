@@ -6,6 +6,7 @@ import tempfile
 from pyspark.sql import SparkSession
 import pandas as pd
 from PIL import Image
+import argparse
 
 import torch
 import torch.nn as nn
@@ -107,6 +108,25 @@ def evaluate_partition(partition_index, rows, images_base_path, hdfs_model_path)
     return iter(results)
 
 def main():
+    # 1. Set up argument parser
+    parser = argparse.ArgumentParser(
+        description="Tune ResNet50 model on HDFS image data"
+    )
+    parser.add_argument(
+        "--csv_path",
+        type=str,
+        default="hdfs://management:9000/data/train.csv",
+        help="Path to the labels CSV file"
+    )
+    parser.add_argument(
+        "--images_base_path",
+        type=str,
+        default="hdfs://management:9000/data",
+        help="Path to the image data files"
+    )
+    args = parser.parse_args()
+    train_csv_path =  args.csv_path
+    images_base_path = args.images_base_path
     # Initialize a Spark session.
     spark = SparkSession.builder.appName("Distributed_Evaluation").getOrCreate()
 
@@ -115,8 +135,8 @@ def main():
     num_partitions = int(spark.conf.get("spark.myApp.numPartitions", "32"))
 
     # HDFS paths
-    train_csv_path = "hdfs://management:9000/data/train.csv"
-    images_base_path = "hdfs://management:9000/data"
+    #train_csv_path = "hdfs://management:9000/data/train.csv"
+    #images_base_path = "hdfs://management:9000/data"
     hdfs_model_path = "hdfs://management:9000/data/model_collated/resnet50_final.pt"
     hdfs_output_csv = "hdfs://management:9000/data/distributed_evaluation_results.csv"
 

@@ -123,8 +123,8 @@ with DAG(
         --conf spark.pyspark.python=/usr/bin/python3 \
         --conf spark.pyspark.driver.python=/usr/bin/python3 \
         --conf spark.executor.instances=4 \
-        --conf spark.executor.cores=2 \
-        --conf spark.executor.memory=4G \
+        --conf spark.executor.cores=1 \
+        --conf spark.executor.memory=6G \
         --conf spark.myApp.numPartitions=64 \
         evaluate_train.py \
         --csv_path {{var.value.train_csv_path}} \
@@ -153,8 +153,8 @@ with DAG(
         --conf spark.pyspark.python=/usr/bin/python3 \
         --conf spark.pyspark.driver.python=/usr/bin/python3 \
         --conf spark.executor.instances=4 \
-        --conf spark.executor.cores=2 \
-        --conf spark.executor.memory=4G \
+        --conf spark.executor.cores=1 \
+        --conf spark.executor.memory=6G \
         --conf spark.myApp.numPartitions=16 \
         evaluate_test.py \
         --csv_path {{var.value.test_csv_path}} \

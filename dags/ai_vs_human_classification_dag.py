@@ -29,7 +29,7 @@ for key, default in [
         'sample_data_path',
         'hdfs://management:9000/data/sample.csv'
     ),
-    ('tuning_time', '.1'),
+    ('tuning_time', '6.5'),
     (
         'images_base_path',
         'hdfs://management:9000/data'
@@ -73,10 +73,10 @@ with DAG(
             --deploy-mode client \
             --conf spark.pyspark.python=/usr/bin/python3 \
             --conf spark.pyspark.driver.python=/usr/bin/python3 \
-            --executor-memory 8G \
-            --executor-cores 4 \
-            --num-executors 4 \
-            --driver-memory 4G \
+            --conf spark.executor.instances=4 \
+            --conf spark.executor.cores=3 \
+            --conf spark.executor.memory=24G \
+            --conf spark.driver-memory=4G \
             tune_resnet.py \
             --tune_time {{var.value.tuning_time}}  \
             --csv_path {{var.value.train_csv_path}} \
@@ -123,9 +123,9 @@ with DAG(
         --conf spark.pyspark.python=/usr/bin/python3 \
         --conf spark.pyspark.driver.python=/usr/bin/python3 \
         --conf spark.executor.instances=4 \
-        --conf spark.executor.cores=1 \
-        --conf spark.executor.memory=6G \
-        --conf spark.myApp.numPartitions=64 \
+        --conf spark.executor.cores=3 \
+        --conf spark.executor.memory=28G \
+        --conf spark.myApp.numPartitions=32 \
         evaluate_train.py \
         --csv_path {{var.value.train_csv_path}} \
         --images_base_path {{var.value.images_base_path}} \
@@ -153,8 +153,8 @@ with DAG(
         --conf spark.pyspark.python=/usr/bin/python3 \
         --conf spark.pyspark.driver.python=/usr/bin/python3 \
         --conf spark.executor.instances=4 \
-        --conf spark.executor.cores=1 \
-        --conf spark.executor.memory=6G \
+        --conf spark.executor.cores=3 \
+        --conf spark.executor.memory=28G \
         --conf spark.myApp.numPartitions=16 \
         evaluate_test.py \
         --csv_path {{var.value.test_csv_path}} \

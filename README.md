@@ -4,12 +4,12 @@
 
 This repository presents a Python-based framework dedicated to the fine-tuning and evaluation of image classification models. It encompasses scripts for hyperparameter tuning, model evaluation, and auxiliary utilities, facilitating streamlined experimentation and performance assessment.
 
-- **dags/**: Presumably contains Directed Acyclic Graphs for workflow management tools such as Apache Airflow.
+- **dags/**: Contains Directed Acyclic Graphs for workflow management tools such as Apache Airflow.
 - **collate.py**: Handles data collation and preprocessing tasks.
 - **evaluate_test.py**: Evaluates model performance on the test dataset.
 - **evaluate_train.py**: Evaluates model performance on the training dataset.
-- **publisher.py**: Manages the publishing or logging of results.
-- **request.py**: Handles HTTP requests or API interactions.
+- **publisher.py**: Manages the publishing of pipeline events status.
+- **request.py**: Handles image classification request
 - **tune_resnet.py**: Fine-tunes a ResNet model architecture.
 
 ## Prerequisites
